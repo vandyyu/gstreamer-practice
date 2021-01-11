@@ -2,10 +2,12 @@
 #include <vector>
 #include <string>
 
+#include "vd_vaapi.h"
+
 #include <gst/gst.h>
 using namespace std;
 
-vector<int> run_indexs = {3};
+vector<int> run_indexs = {1};
 vector<void (*)()> basic_tutorials;
 
 string native_uri = "file:///home/vandy/Videos/TCL_H264_3840x2160_CABAC_30FPS_77.9Mbps_AAC_48kHz.mp4";
@@ -223,7 +225,7 @@ void run_basic_tutorial(int i){
     cout << endl;
 }
 
-int main(int argc, char *argv[]) {
+int main_tutorial(int argc, char *argv[]) {
     basic_tutorials = {
         basic_tutorial_1,
         basic_tutorial_2,
@@ -236,5 +238,48 @@ int main(int argc, char *argv[]) {
     for(;iter != run_indexs.end();++iter){
         run_basic_tutorial(*iter);
     }
+    return 0;
+}
+
+int main(int argc, char* argv[]){
+    GError* err;
+    gboolean state = gst_init_check(&argc, &argv, &err);
+    if(state == FALSE){
+        g_error_free(err);
+        g_printerr("gst_init failed!\n");
+        return -1;
+    }
+    if(argc <= 1){
+        g_printerr("please input video file path!\n");
+        return -1;
+    }
+    UserData gstva_data;
+    GstElement* gstvaapi_pipeline = NULL;
+    GstElement* libav_pipeline = NULL;
+
+    if(argc == 2 || (argc > 2 && !strncmp(argv[2], "1", 1))){
+        g_print("using gstreamer-vaapi plugin!\n");
+        gstvaapi_pipeline = build_pipeline_with_gstvaapi(argv[1], gstva_data);
+        if(!gstvaapi_pipeline){
+            goto FAILED;
+        }
+    }
+    if(argc > 2 && !strncmp(argv[2], "2", 1)){
+        g_print("using gst-libav plugin!\n");
+        libav_pipeline = build_pipeline_with_libav(argv[1], gstva_data);
+        if(!gstvaapi_pipeline){
+            goto FAILED;
+        }
+    }
+
+FAILED:
+    if(gstva_data.pipeline){
+        gst_element_set_state(gstva_data.pipeline, GST_STATE_NULL);
+    }
+    GST_OBJECT_UNREF_SAFE(gstva_data.pipeline);
+    if(libav_pipeline){
+        gst_element_set_state(libav_pipeline, GST_STATE_NULL);
+    }
+    GST_OBJECT_UNREF_SAFE(libav_pipeline)
     return 0;
 }
